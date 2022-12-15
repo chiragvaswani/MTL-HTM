@@ -13,7 +13,7 @@ from htm.bindings.algorithms import TemporalMemory
 from htm.algorithms.anomaly_likelihood import AnomalyLikelihood
 from htm.bindings.algorithms import Predictor
 
-def runModel(gymName, plot=False, load=False):
+def runModel(gymName, plot=False, load=False, fileName):
     # Assumning both plot and load are never passed as true.
     print("Creating model from %s."%gymName)
 
@@ -96,11 +96,51 @@ def runModel(gymName, plot=False, load=False):
     predictor = Predictor( steps=[1, 5], alpha=parameters["predictor"]['sdrc_alpha'] )
     predictor_resolution = 1
 
+
+    # Set file
+    records = []
+    with open(fileName, "r") as fin:
+        reader = csv.reader(fin)
+        headers = next(reader)
+        next(reader)
+        next(reader)
+        for record in reader:
+            records.append(record)
+
+
     # Iterate through every datum in the dataset, record the inputs & outputs.
     inputs      = []
     anomaly     = []
     anomalyProb = []
 
+
+    for count, record in enumerate(records):
+
+        # Convert date string into Python date object.
+        dateString = datetime.datetime.strptime(record[0], "%m/%d/%y %H:%M")
+        # Convert data value string into float.
+        consumption = float(record[1])
+        inputs.append( consumption )
+
+        # Call the encoders to create bit representations for each value.  These are SDR objects.
+        dateBits        = dateEncoder.encode(dateString)
+        consumptionBits = scalarEncoder.encode(consumption)
+
+        # Concatenate all these encodings into one large encoding for Spatial Pooling.
+        encoding = SDR( encodingWidth ).concatenate([consumptionBits, dateBits])
+        enc_info.addData( encoding )
+
+        # Create an SDR to represent active columns, This will be populated by the
+        # compute method below. It must have the same dimensions as the Spatial Pooler.
+        activeColumns = SDR( sp.getColumnDimensions() )
+
+        # Execute Spatial Pooling algorithm over input space.
+        sp.compute(encoding, True, activeColumns)
+        sp_info.addData( activeColumns )
+
+        # Execute Temporal Memory algorithm over active mini-columns.
+        tm.compute(activeColumns, learn=True)
+        tm_info.addData( tm.getActiveCells().flatten() )
 
 
 
