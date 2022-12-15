@@ -142,6 +142,25 @@ def runModel(gymName, plot=False, load=False, fileName):
         tm.compute(activeColumns, learn=True)
         tm_info.addData( tm.getActiveCells().flatten() )
 
+        # Predict what will happen, and then train the predictor based on what just happened.
+        pdf = predictor.infer( tm.getActiveCells() )
+        for n in (1, 5):
+        if pdf[n]:
+            predictions[n].append( np.argmax( pdf[n] ) * predictor_resolution )
+        else:
+            predictions[n].append(float('nan'))
 
+        anomaly.append( tm.anomaly )
+        anomalyProb.append( anomaly_history.compute(tm.anomaly) )
 
+        predictor.learn(count, tm.getActiveCells(), int(consumption / predictor_resolution))
 
+        # Print information & statistics about the state of the HTM.
+        print("Encoded Input", enc_info)
+        print("")
+        print("Spatial Pooler Mini-Columns", sp_info)
+        print(str(sp))
+        print("")
+        print("Temporal Memory Cells", tm_info)
+        print(str(tm))
+        print("")
