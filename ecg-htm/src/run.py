@@ -155,12 +155,18 @@ def runModel(gymName, plot=False, load=False, fileName):
 
         predictor.learn(count, tm.getActiveCells(), int(consumption / predictor_resolution))
 
-        # Print information & statistics about the state of the HTM.
-        print("Encoded Input", enc_info)
-        print("")
-        print("Spatial Pooler Mini-Columns", sp_info)
-        print(str(sp))
-        print("")
-        print("Temporal Memory Cells", tm_info)
-        print(str(tm))
-        print("")
+    # Print information & statistics about the state of the HTM.
+    print("Encoded Input", enc_info)
+    print("")
+    print("Spatial Pooler Mini-Columns", sp_info)
+    print(str(sp))
+    print("")
+    print("Temporal Memory Cells", tm_info)
+    print(str(tm))
+    print("")
+
+    # Shift the predictions so that they are aligned with the input they predict.
+    for n_steps, pred_list in predictions.items():
+        for x in range(n_steps):
+            pred_list.insert(0, float('nan'))
+            pred_list.pop()
