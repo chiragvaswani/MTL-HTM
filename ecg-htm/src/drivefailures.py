@@ -71,8 +71,8 @@ def get_train_test_inds(y,train_proportion=0.7):
 # split data into good and bad drives, also training and test data
 def dataSplit():
     df = pd.read_csv('harddrive-smart-data.csv')
-    dfBad = df.loc[df['class'] == 1.0]
-    dfGood = df.loc[df['class'] == 0.0]
+    dfBad = df.loc[df['class'] == '1']
+    dfGood = df.loc[df['class'] == '0']
 
     dfBad.to_csv('harddrive-smart-data-bad.csv', sep=',', index=False)
     dfGood.to_csv('harddrive-smart-data-good.csv', sep=',', index=False)
@@ -82,4 +82,5 @@ def dataSplit():
 
 if __name__ == '__main__':
     dataCleanser(_INPUT_FILE)
+    dataSplit()
 
