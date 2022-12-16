@@ -3,6 +3,8 @@ import sys
 import csv
 import datetime
 import os
+import numpy as np
+import math
 
 import htm
 from htm.bindings.sdr import SDR, Metrics
@@ -13,7 +15,7 @@ from htm.bindings.algorithms import TemporalMemory
 from htm.algorithms.anomaly_likelihood import AnomalyLikelihood
 from htm.bindings.algorithms import Predictor
 
-def runModel(gymName, plot=False, load=False, fileName):
+def runModel(gymName, fileName, plot=False, load=False):
     # Assumning both plot and load are never passed as true.
     print("Creating model from %s."%gymName)
 
@@ -27,25 +29,27 @@ def runModel(gymName, plot=False, load=False, fileName):
     },
     'predictor': {'sdrc_alpha': 0.1},
     'sp': {'boostStrength': 3.0,
-            'columnCount': 1638,
+            'columnCount': 2048,
             'localAreaDensity': 0.04395604395604396,
             'potentialPct': 0.85,
-            'synPermActiveInc': 0.04,
-            'synPermConnected': 0.13999999999999999,
-            'synPermInactiveDec': 0.006},
-    'tm': {'activationThreshold': 17,
-            'cellsPerColumn': 13,
+            'synPermActiveInc': 0.05,
+            'synPermConnected': 0.1,
+            'synPermInactiveDec': 0.09813},
+    'tm': {'activationThreshold': 12,
+            'cellsPerColumn': 32,
+            'columnCount':2048,
             'initialPerm': 0.21,
             'maxSegmentsPerCell': 128,
-            'maxSynapsesPerSegment': 64,
-            'minThreshold': 10,
-            'newSynapseCount': 32,
+            'maxSynapsesPerSegment': 32,
+            'minThreshold': 9,
+            'newSynapseCount': 20,
             'permanenceDec': 0.1,
             'permanenceInc': 0.1},
     'anomaly': {'period': 1000},
     }
 
     # Create encoders
+    parameters = default_parameters
     dateEncoder = DateEncoder(timeOfDay= parameters["enc"]["time"]["timeOfDay"],
                             weekend  = parameters["enc"]["time"]["weekend"])
     scalarEncoderParams            = RDSE_Parameters()
@@ -112,14 +116,14 @@ def runModel(gymName, plot=False, load=False, fileName):
     inputs      = []
     anomaly     = []
     anomalyProb = []
+    predictions = {1: [], 5: []}
 
 
     for count, record in enumerate(records):
-
         # Convert date string into Python date object.
-        dateString = datetime.datetime.strptime(record[0], "%m/%d/%y %H:%M")
+        dateString = datetime.datetime.strptime(record[0], "%Y-%m-%d %H:%M:%S.%f")
         # Convert data value string into float.
-        consumption = float(record[1])
+        consumption = float(record[2])
         inputs.append( consumption )
 
         # Call the encoders to create bit representations for each value.  These are SDR objects.
@@ -133,7 +137,6 @@ def runModel(gymName, plot=False, load=False, fileName):
         # Create an SDR to represent active columns, This will be populated by the
         # compute method below. It must have the same dimensions as the Spatial Pooler.
         activeColumns = SDR( sp.getColumnDimensions() )
-
         # Execute Spatial Pooling algorithm over input space.
         sp.compute(encoding, True, activeColumns)
         sp_info.addData( activeColumns )
@@ -145,10 +148,10 @@ def runModel(gymName, plot=False, load=False, fileName):
         # Predict what will happen, and then train the predictor based on what just happened.
         pdf = predictor.infer( tm.getActiveCells() )
         for n in (1, 5):
-        if pdf[n]:
-            predictions[n].append( np.argmax( pdf[n] ) * predictor_resolution )
-        else:
-            predictions[n].append(float('nan'))
+            if pdf[n]:
+                predictions[n].append( np.argmax( pdf[n] ) * predictor_resolution )
+            else:
+                predictions[n].append(float('nan'))
 
         anomaly.append( tm.anomaly )
         anomalyProb.append( anomaly_history.compute(tm.anomaly) )
@@ -177,10 +180,10 @@ def runModel(gymName, plot=False, load=False, fileName):
 
     for idx, inp in enumerate(inputs):
         for n in predictions: # For each [N]umber of time steps ahead which was predicted.
-        val = predictions[n][ idx ]
-        if not math.isnan(val):
-            accuracy[n] += (inp - val) ** 2
-            accuracy_samples[n] += 1
+            val = predictions[n][ idx ]
+            if not math.isnan(val):
+                accuracy[n] += (inp - val) ** 2
+                accuracy_samples[n] += 1
     for n in sorted(predictions):
         accuracy[n] = (accuracy[n] / accuracy_samples[n]) ** .5
         print("Predictive Error (RMS)", n, "steps ahead:", accuracy[n])
@@ -189,4 +192,6 @@ def runModel(gymName, plot=False, load=False, fileName):
     print("Anomaly Mean", np.mean(anomaly))
     print("Anomaly Std ", np.std(anomaly))
 
+if __name__ == "__main__":
+    runModel("common", "disease_person3_converted.csv", False, False)
 
